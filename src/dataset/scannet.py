@@ -15,24 +15,37 @@ class DataLoader(Dataset):
         self.data_path = data_path
         self.scale_factor = scale_factor
         self.gt_pose = gt_pose
-        num_imgs = len(glob(osp.join(data_path, 'color/*.jpg')))
+        num_imgs = len(glob(osp.join(data_path, 'rgb/*.jpg')))
         self.max_depth = max_depth
         self.K = self.load_intrinsic()
-        self.depth_files = [
-            osp.join(data_path, f'depth/{i}.png') for i in range(num_imgs)]
-        self.image_files = [
-            osp.join(data_path, f'color/{i}.jpg') for i in range(num_imgs)]
-        self.pose_files = [
-            osp.join(data_path, f'pose/{i}.txt') for i in range(num_imgs)]
+        self.depth_files = sorted(glob(f'{data_path}/depth/frame-*.depth.pgm'))
+        self.image_files = sorted(glob(f'{data_path}/rgb/frame-*.color.jpg'))
+        self.pose_file = osp.join(data_path, "gt.txt")
         self.num_imgs = num_imgs
+        
+        self.load_poses(self.pose_file)
+
+    def load_poses(self, path):
+        poses = []
+        with open(path, "r") as f:
+            lines = f.readlines()
+
+        for line in lines:
+            c2w = np.array(list(map(float, line.split()))).reshape(3, 4)
+            c2w = np.vstack((c2w, np.array([0,0,0,1])))
+            c2w = torch.from_numpy(c2w).float()
+            poses.append(c2w)
+
+        poses = torch.stack(poses, dim=0).reshape(len(poses),16)
+        self.poses = np.array(poses)
 
     def load_intrinsic(self):
-        self.K = np.loadtxt(
-            osp.join(self.data_path, 'intrinsic/intrinsic_depth.txt'))[:3, :3]
-        if self.scale_factor > 0:
-            scale = 2**self.scale_factor
-            self.K = self.K / scale
-            self.K[2, 2] = 1
+        self.K = np.eye(3)
+        self.K[0, 0] = 577.590698
+        self.K[1, 1] = 578.729797
+        self.K[0, 2] = 318.905426
+        self.K[1, 2] = 242.683609
+
         if self.crop > 0:
             self.K[0, 2] = self.K[0, 2] - self.crop
             self.K[1, 2] = self.K[1, 2] - self.crop
@@ -49,7 +62,7 @@ class DataLoader(Dataset):
         return depth
 
     def get_init_pose(self):
-        return np.loadtxt(self.pose_files[0])
+        return self.poses[0]
 
     def load_image(self, index):
         img = cv2.imread(self.image_files[index], -1)
@@ -69,7 +82,8 @@ class DataLoader(Dataset):
     def __getitem__(self, index):
         img = torch.from_numpy(self.load_image(index)).float()
         depth = torch.from_numpy(self.load_depth(index)).float()
-        pose = np.loadtxt(self.pose_files[index]) if self.gt_pose else None
+        pose = self.poses[index].reshape(4,4)
+        # pose = self.poses[index] if self.gt_pose else None
         return index, img, depth, self.K, pose
 
 

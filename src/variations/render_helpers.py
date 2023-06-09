@@ -207,7 +207,7 @@ def render_rays(
         childrens, voxel_size, max_voxel_hit, max_distance)
     if profiler is not None:
         profiler.tok("ray_intersect")
-    assert(hits.sum() > 0)
+    assert(hits.sum() > 0), "no ray hit anything"
 
     ray_mask = hits.view(1, -1)
     intersections = {
@@ -488,5 +488,7 @@ def track_frame(
         optim.step()
         if iter == 0 and profiler is not None:
             profiler.tok("backward step")
+
+    print(f"loss: {loss.item()}")
 
     return init_pose, optim, hit_mask

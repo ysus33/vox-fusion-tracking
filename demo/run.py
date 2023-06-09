@@ -5,7 +5,10 @@ import random
 from parser import get_parser
 import numpy as np
 import torch
-from voxslam import VoxSLAM
+# from voxslam import VoxSLAM
+# from voxmapping import VoxMapping
+from voxtracking import VoxTracking
+
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -18,6 +21,9 @@ if __name__ == '__main__':
     if hasattr(args, 'seeding'):
         setup_seed(args.seeding)
 
-    slam = VoxSLAM(args)
+    # slam = VoxSLAM(args)
+    # slam = VoxMapping(args)
+    slam = VoxTracking(args)
+
     slam.start()
     slam.wait_child_processes()

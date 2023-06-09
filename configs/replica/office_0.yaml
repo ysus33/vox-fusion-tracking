@@ -7,7 +7,7 @@ enable_vis: False
 hard_realtime: False
 
 data_specs:
-  data_path: '/mnt/nas_8/datasets/voxslam/Replica/office0'
+  data_path: '/mnt/data3/plenoxelVO/Replica/office0'
   max_depth: 10
 
 tracker_specs:

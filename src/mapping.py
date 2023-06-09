@@ -13,7 +13,7 @@ from variations.render_helpers import bundle_adjust_frames
 from utils.mesh_util import MeshExtractor
 
 torch.classes.load_library(
-    "third_party/sparse_octree/build/lib.linux-x86_64-3.8/svo.cpython-38-x86_64-linux-gnu.so")
+    "third_party/sparse_octree/build/lib.linux-x86_64-cpython-38/svo.cpython-38-x86_64-linux-gnu.so")
 
 
 def get_network_size(net):
@@ -97,6 +97,64 @@ class Mapping:
                     self.initialized = True
                 else:
                     self.do_mapping(share_data, tracked_frame)
+                    self.create_voxels(tracked_frame)
+                    # if (tracked_frame.stamp - self.current_keyframe.stamp) > 50:
+                    if (tracked_frame.stamp - self.current_keyframe.stamp) > 50:
+                        self.insert_keyframe(tracked_frame)
+                        print(
+                            f"********** current num kfs: { len(self.keyframe_graph) } **********")
+
+                # self.create_voxels(tracked_frame)
+                tracked_pose = tracked_frame.get_pose().detach()
+                ref_pose = self.current_keyframe.get_pose().detach()
+                rel_pose = torch.linalg.inv(ref_pose) @ tracked_pose
+                self.frame_poses += [(len(self.keyframe_graph) -
+                                      1, rel_pose.cpu())]
+                self.depth_maps += [tracked_frame.depth.clone().cpu()]
+
+                if self.mesh_freq > 0 and (tracked_frame.stamp + 1) % self.mesh_freq == 0:
+                    self.logger.log_mesh(self.extract_mesh(
+                        res=self.mesh_res, clean_mesh=True), name=f"mesh_{tracked_frame.stamp:05d}.ply")
+
+                if self.save_data_freq > 0 and (tracked_frame.stamp + 1) % self.save_data_freq == 0:
+                    self.save_debug_data(tracked_frame)
+            elif share_data.stop_mapping:
+                break
+
+        print(f"********** post-processing {self.final_iter} steps **********")
+        self.num_iterations = 1
+        for iter in range(self.final_iter):
+            self.do_mapping(share_data, tracked_frame=None,
+                            update_pose=False, update_decoder=False)
+
+        print("******* extracting final mesh *******")
+        pose = self.get_updated_poses()
+        mesh = self.extract_mesh(res=self.mesh_res, clean_mesh=False)
+        self.logger.log_ckpt(self)
+        self.logger.log_numpy_data(np.asarray(pose), "frame_poses")
+        self.logger.log_mesh(mesh)
+        self.logger.log_numpy_data(self.extract_voxels(), "final_voxels")
+        print("******* mapping process died *******")
+
+    def spin_for_pure_mapping(self, share_data, kf_buffer):
+        print("mapping process started!")
+        while True:
+            # torch.cuda.empty_cache()
+            if not kf_buffer.empty() and not share_data.stop_mapping:
+                tracked_frame = kf_buffer.get()
+                # self.create_voxels(tracked_frame)
+
+                if not self.initialized:
+                    if self.mesher is not None:
+                        self.mesher.rays_d = tracked_frame.get_rays()
+                    self.create_voxels(tracked_frame)
+                    self.insert_keyframe(tracked_frame)
+                    while kf_buffer.empty():
+                        self.do_mapping(share_data, update_pose=False)
+                        # self.update_share_data(share_data, tracked_frame.stamp)
+                    self.initialized = True
+                else:
+                    self.do_mapping(share_data, tracked_frame, update_pose=False)
                     self.create_voxels(tracked_frame)
                     # if (tracked_frame.stamp - self.current_keyframe.stamp) > 50:
                     if (tracked_frame.stamp - self.current_keyframe.stamp) > 50:

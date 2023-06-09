@@ -57,7 +57,8 @@ class DataLoader(Dataset):
         img = torch.from_numpy(self.load_image(index)).float()
         depth = self.load_depth(index)
         depth = None if depth is None else torch.from_numpy(depth).float()
-        pose = self.gt_pose[index] if self.use_gt else None
+        pose = self.gt_pose[index].reshape(4,4)
+        # pose = self.gt_pose[index] if self.use_gt else None
         return index, img, depth, self.K, pose
 
 

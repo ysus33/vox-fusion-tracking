@@ -7,7 +7,7 @@ enable_vis: False
 hard_realtime: False
 
 data_specs:
-  data_path: '/mnt/dataset2/nice-slam/room0'
+  data_path: '/mnt/data3/plenoxelVO/Replica/room0'
   max_depth: 10
 
 tracker_specs:
